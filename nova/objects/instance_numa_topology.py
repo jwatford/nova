@@ -12,6 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+
+from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import versionutils
 
@@ -20,6 +22,9 @@ from nova import exception
 from nova.objects import base
 from nova.objects import fields as obj_fields
 from nova.virt import hardware
+
+
+CONF = cfg.CONF
 
 
 # TODO(berrange): Remove NovaObjectDictCompat
@@ -66,6 +71,9 @@ class InstanceNUMACell(base.NovaObject,
         if 'pagesize' not in kwargs:
             self.pagesize = None
             self.obj_reset_changes(['pagesize'])
+        if 'cpu_topology' not in kwargs:
+            self.cpu_topology = None
+            self.obj_reset_changes(['cpu_topology'])
         if 'cpu_pinning' not in kwargs:
             self.cpu_pinning = None
             self.obj_reset_changes(['cpu_pinning_raw'])
@@ -229,6 +237,17 @@ class InstanceNUMATopology(base.NovaObject,
         for cell in self.cells:
             cell.clear_host_pinning()
         return self
+
+    def __str__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + str(cell)
+        return topology_str
+
+    def __repr__(self):
+        topology_str = '{obj_name}: '.format(obj_name=self.obj_name())
+        topology_str += ', '.join(repr(cell) for cell in self.cells)
+        return topology_str
 
     @property
     def emulator_threads_isolated(self):

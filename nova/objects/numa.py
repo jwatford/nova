@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import versionutils
 
@@ -19,6 +20,9 @@ from nova import exception
 from nova.objects import base
 from nova.objects import fields
 from nova.virt import hardware
+
+
+CONF = cfg.CONF
 
 
 def all_things_equal(obj_a, obj_b):
@@ -152,6 +156,50 @@ class NUMACell(base.NovaObject):
                         (memory % pages.size_kb) == 0)
         raise exception.MemoryPageSizeNotSupported(pagesize=pagesize)
 
+    def __str__(self):
+        return ('{obj_name} (id: {id})'
+               '  cpus: {cpus}'
+               '  mem:\n'
+               '    total: {total}'
+               '    used: {used}'
+               '  cpu_usage: {cpu_usage}'
+               '  siblings: {siblings}'
+               '  pinned_cpus: {pinned_cpus}'
+               '  mempages: {mempages}'.format(
+            obj_name=self.obj_name(),
+            id=self.id,
+            cpus=hardware.format_cpu_spec(
+                self.cpuset, allow_ranges=True),
+            total=self.memory,
+            used=self.memory_usage,
+            cpu_usage=self.cpu_usage if ('cpu_usage' in self) else None,
+            siblings=self.siblings,
+            pinned_cpus=hardware.format_cpu_spec(
+                self.pinned_cpus, allow_ranges=True),
+            mempages=self.mempages,
+                                                ))
+
+    def __repr__(self):
+        return ('{obj_name} (id: {id}) '
+               'cpus: {cpus} '
+               'mem: total: {total} used: {used} '
+               'cpu_usage: {cpu_usage} '
+               'siblings: {siblings} '
+               'pinned_cpus: {pinned_cpus} '
+               'mempages: {mempages} '.format(
+            obj_name=self.obj_name(),
+            id=self.id,
+            cpus=hardware.format_cpu_spec(
+                self.cpuset, allow_ranges=True),
+            total=self.memory,
+            used=self.memory_usage,
+            cpu_usage=self.cpu_usage if ('cpu_usage' in self) else None,
+            siblings=self.siblings,
+            pinned_cpus=hardware.format_cpu_spec(
+                self.pinned_cpus, allow_ranges=True),
+            mempages=self.mempages,
+                                            ))
+
 
 @base.NovaObjectRegistry.register
 class NUMAPagesTopology(base.NovaObject):
@@ -187,6 +235,20 @@ class NUMAPagesTopology(base.NovaObject):
             # an updated node we must ensure that this property is defined.
             self.reserved = 0
         return self.total - self.used - self.reserved
+
+    def adjust_used(self, actual_free):
+        """Adjust the number of used pages if there is less actual free pages
+           than what is tracked for VMs.
+        """
+        if not self.obj_attr_is_set('reserved'):
+            # In case where an old compute node is sharing resource to
+            # an updated node we must ensure that this property is defined.
+            self.reserved = 0
+        tracked_free = self.total - self.used - self.reserved
+        used_old = self.used
+        if actual_free < tracked_free:
+            self.used += tracked_free - actual_free
+        return used_old, self.used
 
     @property
     def free_kb(self):
@@ -250,6 +312,18 @@ class NUMATopology(base.NovaObject):
             NUMACell._from_dict(cell_dict)
             for cell_dict in data_dict.get('cells', [])])
 
+    def __str__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + str(cell)
+        return topology_str
+
+    def __repr__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + repr(cell)
+        return topology_str
+
 
 @base.NovaObjectRegistry.register
 class NUMATopologyLimits(base.NovaObject):
@@ -269,3 +343,19 @@ class NUMATopologyLimits(base.NovaObject):
         target_version = versionutils.convert_version_to_tuple(target_version)
         if target_version < (1, 1):
             primitive.pop('network_metadata', None)
+
+    @classmethod
+    def obj_from_db_obj(cls, db_obj):
+        if 'nova_object.name' in db_obj:
+            obj_topology = cls.obj_from_primitive(db_obj)
+        else:
+            # NOTE(sahid): This compatibility code needs to stay until we can
+            # guarantee that all compute nodes are using RPC API => 3.40.
+            cell = db_obj['cells'][0]
+            ram_ratio = cell['mem']['limit'] / float(cell['mem']['total'])
+            cpu_ratio = cell['cpu_limit'] / float(len(hardware.parse_cpu_spec(
+                cell['cpus'])))
+            obj_topology = NUMATopologyLimits(
+                cpu_allocation_ratio=cpu_ratio,
+                ram_allocation_ratio=ram_ratio)
+        return obj_topology
