@@ -137,8 +137,29 @@ class InstanceNUMACell(base.NovaObject,
         self.cpu_pinning = {}
         return self
 
+    def __str__(self):
+        return ('{obj_name} (id: {id})'
+                'cpuset: {cpuset}'
+                'memory: {memory}'
+                'pagesize: {pagesize}'
+                'cpu_topology: {cpu_topology}'
+                'cpu_pinning: {cpu_pinning}'
+                'siblings: {siblings}'
+                'cpu_policy: {cpu_policy}'
+                'cpu_thread_policy: {cpu_thread_policy}')
 
-# TODO(berrange): Remove NovaObjectDictCompat
+    def __repr__(self):
+        return ('{obj_name} (id: {id})'
+                'cpuset: {cpuset}'
+                'memory: {memory}'
+                'pagesize: {pagesize}'
+                'cpu_topology: {cpu_topology}'
+                'cpu_pinning: {cpu_pinning}'
+                'siblings: {siblings}'
+                'cpu_policy: {cpu_policy}'
+                'cpu_thread_policy: {cpu_thread_policy}')
+
+
 @base.NovaObjectRegistry.register
 class InstanceNUMATopology(base.NovaObject,
                            base.NovaObjectDictCompat):
