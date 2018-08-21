@@ -66,6 +66,9 @@ class InstanceNUMACell(base.NovaObject,
         if 'pagesize' not in kwargs:
             self.pagesize = None
             self.obj_reset_changes(['pagesize'])
+        if 'cpu_topology' not in kwargs:
+            self.cpu_topology = None
+            self.obj_reset_changes(['cpu_topology'])
         if 'cpu_pinning' not in kwargs:
             self.cpu_pinning = None
             self.obj_reset_changes(['cpu_pinning_raw'])
@@ -129,8 +132,29 @@ class InstanceNUMACell(base.NovaObject,
         self.cpu_pinning = {}
         return self
 
+    def __str__(self):
+        return ('{obj_name} (id: {id})'
+                'cpuset: {cpuset}'
+                'memory: {memory}'
+                'pagesize: {pagesize}'
+                'cpu_topology: {cpu_topology}'
+                'cpu_pinning: {cpu_pinning}'
+                'siblings: {siblings}'
+                'cpu_policy: {cpu_policy}'
+                'cpu_thread_policy: {cpu_thread_policy}')
 
-# TODO(berrange): Remove NovaObjectDictCompat
+    def __repr__(self):
+        return ('{obj_name} (id: {id})'
+                'cpuset: {cpuset}'
+                'memory: {memory}'
+                'pagesize: {pagesize}'
+                'cpu_topology: {cpu_topology}'
+                'cpu_pinning: {cpu_pinning}'
+                'siblings: {siblings}'
+                'cpu_policy: {cpu_policy}'
+                'cpu_thread_policy: {cpu_thread_policy}')
+
+
 @base.NovaObjectRegistry.register
 class InstanceNUMATopology(base.NovaObject,
                            base.NovaObjectDictCompat):
@@ -229,6 +253,17 @@ class InstanceNUMATopology(base.NovaObject,
         for cell in self.cells:
             cell.clear_host_pinning()
         return self
+
+    def __str__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + str(cell)
+        return topology_str
+
+    def __repr__(self):
+        topology_str = '{obj_name}: '.format(obj_name=self.obj_name())
+        topology_str += ', '.join(repr(cell) for cell in self.cells)
+        return topology_str
 
     @property
     def emulator_threads_isolated(self):

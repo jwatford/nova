@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import versionutils
 
@@ -19,6 +20,9 @@ from nova import exception
 from nova.objects import base
 from nova.objects import fields
 from nova.virt import hardware
+
+
+CONF = cfg.CONF
 
 
 def all_things_equal(obj_a, obj_b):
@@ -152,6 +156,50 @@ class NUMACell(base.NovaObject):
                         (memory % pages.size_kb) == 0)
         raise exception.MemoryPageSizeNotSupported(pagesize=pagesize)
 
+    def __str__(self):
+        return ('{obj_name} (id: {id})'
+               '  cpus: {cpus}'
+               '  mem:\n'
+               '    total: {total}'
+               '    used: {used}'
+               '  cpu_usage: {cpu_usage}'
+               '  siblings: {siblings}'
+               '  pinned_cpus: {pinned_cpus}'
+               '  mempages: {mempages}'.format(
+            obj_name=self.obj_name(),
+            id=self.id,
+            cpus=hardware.format_cpu_spec(
+                self.cpuset, allow_ranges=True),
+            total=self.memory,
+            used=self.memory_usage,
+            cpu_usage=self.cpu_usage if ('cpu_usage' in self) else None,
+            siblings=self.siblings,
+            pinned_cpus=hardware.format_cpu_spec(
+                self.pinned_cpus, allow_ranges=True),
+            mempages=self.mempages,
+                                                ))
+
+    def __repr__(self):
+        return ('{obj_name} (id: {id}) '
+               'cpus: {cpus} '
+               'mem: total: {total} used: {used} '
+               'cpu_usage: {cpu_usage} '
+               'siblings: {siblings} '
+               'pinned_cpus: {pinned_cpus} '
+               'mempages: {mempages} '.format(
+            obj_name=self.obj_name(),
+            id=self.id,
+            cpus=hardware.format_cpu_spec(
+                self.cpuset, allow_ranges=True),
+            total=self.memory,
+            used=self.memory_usage,
+            cpu_usage=self.cpu_usage if ('cpu_usage' in self) else None,
+            siblings=self.siblings,
+            pinned_cpus=hardware.format_cpu_spec(
+                self.pinned_cpus, allow_ranges=True),
+            mempages=self.mempages,
+                                            ))
+
 
 @base.NovaObjectRegistry.register
 class NUMAPagesTopology(base.NovaObject):
@@ -249,6 +297,18 @@ class NUMATopology(base.NovaObject):
         return cls(cells=[
             NUMACell._from_dict(cell_dict)
             for cell_dict in data_dict.get('cells', [])])
+
+    def __str__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + str(cell)
+        return topology_str
+
+    def __repr__(self):
+        topology_str = '{obj_name}:'.format(obj_name=self.obj_name())
+        for cell in self.cells:
+            topology_str += '\n' + repr(cell)
+        return topology_str
 
 
 @base.NovaObjectRegistry.register
